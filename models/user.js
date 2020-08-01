@@ -37,7 +37,7 @@ userSchema.methods.checkPassword = async function(password) {
 userSchema.methods.checkAuthCode = function(authCode) {
   return speakeasy.totp.verify({
     secret: this.tfa.secret,
-    encoding: 'base32',
+    encoding: process.env.TFA_ENCODING,
     token: authCode
   });
 }

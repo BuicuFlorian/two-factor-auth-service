@@ -53,14 +53,14 @@ class UserController {
       const secret = speakeasy.generateSecret({
         length: 20,
         name: user.email,
-        issuer: 'FlorianAuth'
+        issuer: process.env.TFA_ISSUER
       });
 
       const url = speakeasy.otpauthURL({
         secret: secret.base32,
         label: user.email,
-        issuer: 'FlorianAuth',
-        encoding: 'base32'
+        issuer: process.env.TFA_ISSUER,
+        encoding: process.env.TFA_ENCODING
       });
 
       QRCode.toDataURL(url, async (err, dataURL) => {
@@ -92,7 +92,7 @@ class UserController {
   async verifyToken(user, token) {
     const isValidToken = speakeasy.totp.verify({
       secret: user.tfa.tempSecret,
-      encoding: 'base32',
+      encoding: process.env.TFA_ENCODING,
       token
     });
 
