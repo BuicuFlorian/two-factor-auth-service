@@ -4,8 +4,12 @@ const { loginRoutes } = require('./login');
 const { tfaRoutes } = require('./tfa');
 
 function loadRoutes(app) {
-  app.use(loginRoutes(router));
-  app.use(tfaRoutes(router))
+  const db = mongoose.createConnection(process.env.DB_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    useCreateIndex: true
+  });
+
 }
 
 module.exports = { loadRoutes };
