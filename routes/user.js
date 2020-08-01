@@ -1,7 +1,7 @@
 const { getUserModel } = require('../models/user');
 const { UserController } = require('../controllers/user');
 
-function loginRoutes(router, db) {
+function userRoutes(router, db) {
   const userModel = getUserModel(db);
   const userController = new UserController(userModel)
 
@@ -42,4 +42,4 @@ function loginRoutes(router, db) {
   return router;
 }
 
-module.exports = { loginRoutes };
+module.exports = { userRoutes };
