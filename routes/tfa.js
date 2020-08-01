@@ -1,30 +1,15 @@
-const QRCode = require('qrcode');
-const speakeasy = require('speakeasy');
+const { getUserModel } = require('../models/user');
+const { UserController } = require('../controllers/user');
 
-const { user } = require('../db/user');
+function tfaRoutes(router, db) {
+  const userModel = getUserModel(db);
+  const userController = new UserController(userModel);
 
-function tfaRoutes(router) {
-  router.post('/tfa', (req, res) => {
-    const secret = speakeasy.generateSecret({
-      length: 20,
-      name: user.email,
-      issuer: 'FlorianAuth'
-    });
-
-    const url = speakeasy.otpauthURL({
-      secret: secret.base32,
-      label: user.email,
-      issuer: 'FlorianAuth',
-      encoding: 'base32'
-    });
-
-    QRCode.toDataURL(url, (err, dataURL) => {
-      user.tfa = {
-        secret: '',
-        tempSecret: secret.base32,
-        dataURL,
-        tfaURL: url
-      };
+  router.post('/tfa', async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await userController.find({ _id: userId });
+      const { secret, dataURL } = await userController.setupTFA(user);
 
       return res.json({
         message: 'TFA needs to be verified',
@@ -32,38 +17,54 @@ function tfaRoutes(router) {
         dataURL,
         tfaURL: secret.otpauth_url
       });
-    });
-  });
-
-  router.get('/tfa', (req, res) => {
-    const tfa = user.tfa ? user.tfa : null;
-
-    res.json(tfa);
-  });
-
-  router.delete('/tfa', (req, res) => {
-    delete user.tfa;
-
-    res.json({ message: 'success' });
-  });
-
-  router.post('/tfa/verify', (req, res) => {
-    const isValidToken = speakeasy.totp.verify({
-      secret: user.tfa.tempSecret,
-      encoding: 'base32',
-      token: req.body.token
-    });
-
-    if (isValidToken) {
-      user.tfa.secret = user.tfa.tempSecret
-
-      return res.json({ message: 'TFS was successfully enabled' });
+    } catch (error) {
+      res.status(500).end();
     }
+  });
 
-    return res.send({
-      status: 403,
-      message: 'Invalid auth code. Please verify system date and time.'
-    });
+  router.get('/tfa', async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await userController.find({ _id: userId });
+      const response = user.tfa
+        ? user.tfa
+        : { message: 'Two Factor Auth is not enabled' };
+
+      res.json(response);
+    } catch (error) {
+      res.status(500).end();
+    }
+  });
+
+  router.post('/tfa/verify', async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await userController.find({ _id: userId });
+      const token = req.body.token;
+      const isValidToken = await userController.verifyToken(user, token);
+
+      if (isValidToken) {
+        return res.json({ message: 'TFS was successfully enabled' });
+      }
+
+      return res.send({
+        status: 403,
+        message: 'Invalid auth code. Please verify system date and time.'
+      });
+    } catch (error) {
+      res.status(500).end();
+    }
+  });
+
+  router.delete('/tfa', async (req, res) => {
+    try {
+      const userId = req.user._id;
+      await userController.removeTFA(userId);
+
+      res.json({ message: 'Successfully disabled Two Factor Auth' });
+    } catch (error) {
+      res.status(500).end();
+    }
   });
 
   return router;
