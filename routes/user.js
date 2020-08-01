@@ -5,6 +5,17 @@ function userRoutes(router, db) {
   const userModel = getUserModel(db);
   const userController = new UserController(userModel)
 
+  router.post('/sign-up', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      await userController.save({ email, password });
+
+      res.json({ mesage: 'Account created successfully' });
+    } catch (error) {
+      res.status(500).send();
+    }
+  });
+
   router.post('/login', async (req, res) => {
     try {
       const { email, password } = req.body;
