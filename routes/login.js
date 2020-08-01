@@ -1,49 +1,41 @@
-const speakeasy = require('speakeasy');
+const { getUserModel } = require('../models/user');
+const { UserController } = require('../controllers/user');
 
-const { user } = require('../db/user');
+function loginRoutes(router, db) {
+  const userModel = getUserModel(db);
+  const userController = new UserController(userModel)
 
-function loginRoutes(router) {
-  router.post('/login', (req, res) => {
-    // TFA is disabled
-    if (!user.tfa || !user.tfa.secret) {
-      if (user.email === req.body.email && user.password === req.body.password) {
-        return res.json({ message: 'success' });
-      }
+  router.post('/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await userController.find({ email });
+      const isValidPassword = await user.checkPassword(password);
 
-      return res.send({
-        status: 403,
-        message: 'Invalid email or password'
-      });
-    // TFA is enabled
-    } else {
-      if (user.email !== req.body.email && user.password !== req.body.password) {
-        return res.send({
-          status: 403,
-          message: 'Invalid email or password'
-        });
-      }
+      if (isValidPassword) {
+        const token = await userController.generateJwt(user);
+        // TFA is disabled
+        if (!user.tfa || !user.tfa.secret) {
+          return res.json({ jwt: token, email });
+        // TFA is enabled
+        } else {
+          if (!req.headers['tfa-token']) {
+            return res.status(206).send({ message: 'Please enter the Auth Code' });
+          }
 
-      if (!req.headers['tfa-token']) {
-        return res.send({
-          status: 206,
-          message: 'Please enter the Auth Code'
-        });
-      }
+          const authCode = req.headers['tfa-token'];
+          const isValidAuthCode = user.checkAuthCode(authCode);
 
-      const isVerified = speakeasy.totp.verify({
-        secret: user.tfa.secret,
-        encoding: 'base32',
-        token: req.headers['tfa-token']
-      });
+          if (isValidAuthCode) {
+            return res.json({ jwt: token, email });
+          }
 
-      if (isVerified) {
-        res.json({ message: 'Successfully logged in' })
+          return res.status(206).send({ message: 'Invalid auth code' });
+        }
       } else {
-        res.send({
-          status: 206,
-          message: 'Invalid auth code'
-        });
+        return res.status(403).send({ message: 'Wrong password' });
       }
+    } catch (error) {
+      res.status(500).end();
     }
   });
 
